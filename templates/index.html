@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚢 Предсказание цены судна</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f7fa;
+            color: #333;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 14px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #2980b9;
+        }
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            background: #e8f4fc;
+            border-left: 5px solid #3498db;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .error {
+            margin-top: 20px;
+            padding: 15px;
+            background: #fdecea;
+            border-left: 5px solid #e74c3c;
+            color: #c0392b;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚢 ML-модель: Предсказание цены судна</h1>
+
+        <form method="POST" action="/predict">
+            <div class="form-group">
+                <label for="dwt">Дедвейт (DWT)</label>
+                <input type="number" id="dwt" name="dwt" required placeholder="Например: 60000" value="{{ dwt if dwt else '' }}">
+            </div>
+
+            <div class="form-group">
+                <label for="year">Год постройки</label>
+                <input type="number" id="year" name="year" required placeholder="Например: 2018" value="{{ year if year else '' }}">
+            </div>
+
+            <div class="form-group">
+                <label for="type">Тип судна (как в данных: 1, 2, 3...)</label>
+                <input type="text" id="type" name="type" required placeholder="Например: 2" value="{{ ship_type if ship_type else '' }}">
+            </div>
+
+            <div class="form-group">
+                <label for="country">Страна постройки (как в данных: 1, 2, 3...)</label>
+                <input type="text" id="country" name="country" required placeholder="Например: 3" value="{{ country if country else '' }}">
+            </div>
+
+            <div class="form-group">
+                <label for="date">Дата сделки</label>
+                <input type="date" id="date" name="date" required value="{{ date if date else '' }}">
+            </div>
+
+            <button type="submit">💰 Рассчитать цену</button>
+        </form>
+
+        {% if prediction %}
+        <div class="result">
+            🎯 Предсказанная цена: <strong>{{ prediction }}</strong>
+        </div>
+        {% endif %}
+
+        {% if error %}
+        <div class="error">
+            ❌ Ошибка: {{ error }}
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>
