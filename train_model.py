@@ -1,10 +1,12 @@
 # train_model.py
 import pandas as pd
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, KFold, cross_val_score
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_absolute_error, r2_score
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+import numpy as np
 import joblib
 import os
+import matplotlib.pyplot as plt
 
 # Путь к данным
 DATA_PATH = "data/ships.csv"
@@ -158,22 +160,111 @@ def main():
     except Exception as e:
         raise Exception(f"❌ Ошибка при обучении модели: {e}")
 
-    # Оцениваем точность
-    print("📈 Оцениваем качество модели...")
+    # 🔄 Кросс-валидация на обучающей выборке
+    print("\n🧪 Запускаем кросс-валидацию (5 фолдов)...")
+    cv = KFold(n_splits=5, shuffle=True, random_state=42)
+
+    # MAE
+    cv_scores_mae = -cross_val_score(model, X_train, y_train, cv=cv, scoring='neg_mean_absolute_error')
+    # RMSE
+    cv_scores_rmse = np.sqrt(-cross_val_score(model, X_train, y_train, cv=cv, scoring='neg_mean_squared_error'))
+    # R²
+    cv_scores_r2 = cross_val_score(model, X_train, y_train, cv=cv, scoring='r2')
+
+    print(f"📊 CV MAE: ${cv_scores_mae.mean():,.2f} ± ${cv_scores_mae.std():,.2f}")
+    print(f"📊 CV RMSE: ${cv_scores_rmse.mean():,.2f} ± ${cv_scores_rmse.std():,.2f}")
+    print(f"📊 CV R²: {cv_scores_r2.mean():.3f} ± {cv_scores_r2.std():.3f}")
+
+    # 📊 Визуализация кросс-валидации
+    fig, ax = plt.subplots(1, 3, figsize=(18, 5))
+
+    # MAE
+    ax[0].bar(range(1, len(cv_scores_mae)+1), cv_scores_mae, color='#3498db', edgecolor='black')
+    ax[0].axhline(cv_scores_mae.mean(), color='red', linestyle='--', label=f'Среднее: ${cv_scores_mae.mean():,.0f}')
+    ax[0].set_title('MAE по фолдам')
+    ax[0].set_xlabel('Фолд')
+    ax[0].set_ylabel('MAE ($)')
+    ax[0].legend()
+    ax[0].grid(True, alpha=0.3)
+
+    # RMSE
+    ax[1].bar(range(1, len(cv_scores_rmse)+1), cv_scores_rmse, color='#e74c3c', edgecolor='black')
+    ax[1].axhline(cv_scores_rmse.mean(), color='red', linestyle='--', label=f'Среднее: ${cv_scores_rmse.mean():,.0f}')
+    ax[1].set_title('RMSE по фолдам')
+    ax[1].set_xlabel('Фолд')
+    ax[1].set_ylabel('RMSE ($)')
+    ax[1].legend()
+    ax[1].grid(True, alpha=0.3)
+
+    # R²
+    ax[2].bar(range(1, len(cv_scores_r2)+1), cv_scores_r2, color='#2ecc71', edgecolor='black')
+    ax[2].axhline(cv_scores_r2.mean(), color='red', linestyle='--', label=f'Среднее: {cv_scores_r2.mean():.3f}')
+    ax[2].set_title('R² по фолдам')
+    ax[2].set_xlabel('Фолд')
+    ax[2].set_ylabel('R²')
+    ax[2].legend()
+    ax[2].grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig('data/cv_results.png', dpi=150, bbox_inches='tight')
+    print("\n📊 График кросс-валидации сохранён: data/cv_results.png")
+    plt.show()
+
+    # Оцениваем точность на отложенной выборке
+    print("\n📈 Оцениваем качество модели на тестовой выборке...")
     y_pred = model.predict(X_test)
+
+    # MAE — Средняя абсолютная ошибка
     mae = mean_absolute_error(y_test, y_pred)
+
+    # RMSE — Корень из средней квадратичной ошибки
+    rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+
+    # MAPE — Средняя абсолютная процентная ошибка (в процентах)
+    epsilon = 1e-8
+    mape = np.mean(np.abs((y_test - y_pred) / (y_test + epsilon))) * 100
+
+    # R² — Коэффициент детерминации
     r2 = r2_score(y_test, y_pred)
 
-    print("\n✅ Результаты:")
+    print("\n✅ Результаты на тестовой выборке:")
     print(f"Средняя абсолютная ошибка (MAE): ${mae:,.2f}")
+    print(f"Корень из средней квадратичной ошибки (RMSE): ${rmse:,.2f}")
+    print(f"Средняя абсолютная процентная ошибка (MAPE): {mape:.2f}%")
     print(f"Коэффициент детерминации (R²): {r2:.3f}")
 
     if r2 < 0:
         print("⚠️ Внимание: R² отрицательный — модель работает хуже, чем просто среднее значение. Проверьте данные!")
 
+    # 🎨 Построение диагностики модели
+    print("\n🖼️ Строим графики истинных vs предсказанных цен...")
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+
+    # График 1: Истинные vs Предсказанные цены
+    ax1.scatter(y_test, y_pred, alpha=0.7, color='#3498db', edgecolors='w', s=60)
+    ax1.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--', lw=2, label='Идеальное предсказание')
+    ax1.set_xlabel('Истинная цена ($)', fontsize=12)
+    ax1.set_ylabel('Предсказанная цена ($)', fontsize=12)
+    ax1.set_title('Истинные vs Предсказанные цены', fontsize=14, fontweight='bold')
+    ax1.legend()
+    ax1.grid(True, alpha=0.3)
+
+    # График 2: Распределение ошибок
+    errors = y_test - y_pred
+    ax2.hist(errors, bins=30, color='#e74c3c', edgecolor='black', alpha=0.7)
+    ax2.set_xlabel('Ошибка (Истинная - Предсказанная)', fontsize=12)
+    ax2.set_ylabel('Количество', fontsize=12)
+    ax2.set_title('Распределение ошибок', fontsize=14, fontweight='bold')
+    ax2.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig('data/model_diagnostics.png', dpi=150, bbox_inches='tight')
+    print("📊 Диагностические графики сохранены: data/model_diagnostics.png")
+    plt.show()
+
     # Сохраняем модель и список признаков
     print(f"\n💾 Сохраняем модель в {MODEL_PATH}...")
-    os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)  # создаём папку, если её нет
+    os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
 
     try:
         joblib.dump(model, MODEL_PATH)
